@@ -2,6 +2,7 @@
 import { ref, onUnmounted } from "vue";
 import { ClockPanel, weatherAt } from "../features/clock";
 import { FarmScene, FieldsPanel } from "../features/fields";
+import { BeesPanel } from "../features/bees";
 import { WarehousePanel } from "../features/warehouse";
 import { WorkshopPanel } from "../features/workshop";
 import { OrdersPanel, EconomyPanel } from "../features/orders";
@@ -9,13 +10,22 @@ import { createWorkspace } from "./workspace";
 const farm = createWorkspace(),
   active = ref(0),
   tab = ref("warehouse");
-const { clock, warehouse, fields, workshop, orders, engine, notices } = farm;
+const { clock, warehouse, fields, bees, workshop, orders, engine, notices } =
+  farm;
 const timer = setInterval(() => {
   if (!clock.state.paused) engine.advance(1);
 }, 1500);
 onUnmounted(() => clearInterval(timer));
 function reset() {
   if (confirm("开始一座新农场？已保存的存档仍然保留。")) location.reload();
+}
+/** 放置/移动蜂箱时点击地块走蜂箱通道，否则只切换详情 */
+function onPlot(id: number) {
+  if (bees.state.placing || bees.state.movingId) {
+    bees.placeOn(id, fields.state.plots, clock.state.hour);
+    return;
+  }
+  active.value = id;
 }
 </script>
 <template>
@@ -64,7 +74,11 @@ function reset() {
           <FarmScene
             :plots="fields.state.plots"
             :weather="weatherAt(clock.state.hour)"
-            @plot="(id) => (active = id)"
+            :hives="bees.state.hives"
+            :flights="bees.state.flights"
+            :placing="bees.state.placing"
+            :moving-id="bees.state.movingId"
+            @plot="onPlot"
           /><FieldsPanel
             :plots="fields.state.plots"
             :selected="fields.state.selected"
@@ -73,6 +87,18 @@ function reset() {
             @plant="(id) => fields.plant(id, clock.state.hour)"
             @water="fields.water"
             @harvest="fields.harvest"
+          />
+          <BeesPanel
+            :hives="bees.state.hives"
+            :flights="bees.state.flights"
+            :pending-hives="bees.state.pendingHives"
+            :placing="bees.state.placing"
+            :moving-id="bees.state.movingId"
+            :hour="clock.state.hour"
+            @place="bees.beginPlace"
+            @cancel="bees.cancelPlacement"
+            @move="bees.beginMove"
+            @collect="(id) => bees.collectHoney(id, clock.state.hour)"
           />
           <section class="activity">
             <span>农场手记</span>
@@ -124,7 +150,7 @@ function reset() {
           <div class="tip-card">
             <span>✦ 今日小贴士</span>
             <p>
-              雨天不用浇水，可以留些时间给工坊。<br />蓝莓能连续收获三次，记得照顾它。
+              雨天不用浇水，可以留些时间给工坊。<br />在工坊做个蜂箱放在开花田附近，蜜蜂会在晴雨日就近授粉。
             </p>
             <small>跟着季节的节奏，慢慢来就好。</small>
           </div>

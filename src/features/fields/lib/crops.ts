@@ -25,3 +25,22 @@ export function grow(crop: Crop, weather: Weather, hours: number) {
 export function ready(crop: Crop) {
   return crop.growth >= (crops[crop.item]?.duration ?? Infinity);
 }
+/** 开花：进入生长周期后三分之一即开花，直到成熟收获前都可授粉 */
+export function blooming(crop: Crop) {
+  const duration = crops[crop.item]?.duration ?? Infinity;
+  return crop.growth >= duration / 3 && crop.growth < duration;
+}
+/** 授粉记录写到本轮作物上，后续重复收获不会抹掉它，直到作物被移除 */
+export function markPollinated(
+  crop: Crop,
+  hiveId: string,
+  hour: number,
+): Crop {
+  if (crop.pollinated) return crop;
+  return {
+    ...crop,
+    pollinated: true,
+    pollinatedBy: hiveId,
+    pollinatedHour: hour,
+  };
+}

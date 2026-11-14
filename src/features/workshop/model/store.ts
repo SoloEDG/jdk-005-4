@@ -15,6 +15,8 @@ interface Ports {
     source?: string,
   ) => void;
   spend: (n: number) => boolean;
+  /** 设施类成品（蜂箱）交付时的专用通道 */
+  buildFacility?: (facility: "hive") => void;
 }
 export function createWorkshop(ports: Ports, notice: Notice) {
   const state = reactive({ jobs: [] as Job[], serial: 0 });
@@ -63,9 +65,16 @@ export function createWorkshop(ports: Ports, notice: Notice) {
         r = job && recipeById(job.recipe);
       if (!job || job.status !== "ready" || !r) return;
       if (!job.receipt) return;
+      // 蜂箱是设施而非食材，同样会变质：玉米原料放久了蜂箱也会报废
       if (job.finish + items[r.output].life <= hour) {
         job.status = "failed";
         notice("成品存放过久，已变质");
+        return;
+      }
+      if (r.facility === "hive") {
+        ports.buildFacility?.("hive");
+        job.status = "claimed";
+        notice("蜂箱已造好，去农场选一块空地吧");
         return;
       }
       ports.add(

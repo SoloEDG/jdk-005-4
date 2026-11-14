@@ -1,4 +1,4 @@
-import type { Order } from "../../../shared/contracts";
+import type { Item, Order } from "../../../shared/contracts";
 export function initialOrders(hour: number): Order[] {
   return [
     {
@@ -28,16 +28,36 @@ export function initialOrders(hour: number): Order[] {
       deadline: hour + 60,
       status: "open",
     },
+    {
+      id: "o4",
+      item: "gift",
+      quantity: 1,
+      reward: 150,
+      minQuality: 1,
+      deadline: hour + 72,
+      status: "open",
+    },
   ];
 }
+const orderPool: ReadonlyArray<{
+  item: Item;
+  quantity: number;
+  minQuality: number;
+}> = [
+  { item: "corn", quantity: 4, minQuality: 1 },
+  { item: "berry", quantity: 3, minQuality: 2 },
+  { item: "gift", quantity: 1, minQuality: 1 },
+  { item: "honey", quantity: 2, minQuality: 1 },
+  { item: "carrot", quantity: 6, minQuality: 3 },
+];
 export function nextOrder(serial: number, hour: number): Order {
-  const item = serial % 2 ? "corn" : "berry";
+  const pick = orderPool[serial % orderPool.length]!;
   return {
     id: `o${serial}`,
-    item,
-    quantity: 4,
+    item: pick.item,
+    quantity: pick.quantity,
     reward: 90 + serial * 3,
-    minQuality: serial % 3 === 0 ? 2 : 1,
+    minQuality: pick.minQuality,
     deadline: hour + 48,
     status: "open",
   };

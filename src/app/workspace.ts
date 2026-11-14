@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { createClock, createEngine } from "../features/clock";
 import { createFields } from "../features/fields";
+import { createBees } from "../features/bees";
 import { createWarehouse } from "../features/warehouse";
 import { createWorkshop } from "../features/workshop";
 import { createOrders, salePrice } from "../features/orders";
@@ -14,9 +15,30 @@ export function createWorkspace() {
   const clock = createClock();
   const warehouse = createWarehouse(() => clock.state.hour, notice);
   const orders = createOrders(warehouse, notice, clock.state.hour);
-  const fields = createFields(orders.spend, warehouse.add, notice);
+  // 先建 fields，再建 bees；bees 对 fields 的调用都发生在 tick/操作时，不存在初始化死区
+  const fields = createFields(
+    orders.spend,
+    warehouse.add,
+    notice,
+    (id) => bees.occupied(id),
+  );
+  const bees = createBees(
+    {
+      pollinate: (plotId, hiveId, hour) =>
+        fields.pollinate(plotId, hiveId, hour),
+      addHoney: (n, hour) =>
+        warehouse.add("honey", n, 1, hour, "蜂箱采收 · 田间花蜜"),
+    },
+    notice,
+  );
   const workshop = createWorkshop(
-    { ...warehouse, spend: orders.spend },
+    {
+      ...warehouse,
+      spend: orders.spend,
+      buildFacility: (facility) => {
+        if (facility === "hive") bees.stockHive();
+      },
+    },
     notice,
   );
   const engine = createEngine(
@@ -24,7 +46,9 @@ export function createWorkspace() {
     clock.setHour,
     (t) => {
       warehouse.tick(t.to);
+      // 先长作物（本小时末状态），蜜蜂再按开花状态出勤，顺序固定保证推进等价
       fields.tick(t);
+      bees.tick(t, fields.state.plots);
       workshop.tick(t.to);
       orders.tick(t.to);
     },
@@ -33,6 +57,7 @@ export function createWorkspace() {
     clock: clock.snapshot(),
     warehouse: warehouse.snapshot(),
     fields: fields.snapshot(),
+    bees: bees.snapshot(),
     workshop: workshop.snapshot(),
     orders: orders.snapshot(),
   });
@@ -40,6 +65,7 @@ export function createWorkspace() {
     clock,
     warehouse,
     fields,
+    bees,
     workshop,
     orders,
     engine,
@@ -69,6 +95,8 @@ export function createWorkspace() {
         clock.restore(data.clock);
         warehouse.restore(data.warehouse);
         fields.restore(data.fields);
+        // 兼容养蜂功能上线前的旧存档
+        if (data.bees) bees.restore(data.bees);
         workshop.restore(data.workshop);
         orders.restore(data.orders);
         notice("已恢复保存时刻");

@@ -16,7 +16,7 @@ export function createOrders(ports: Ports, notice: Notice, hour: number) {
     coins: 180,
     xp: 0,
     delivered: 0,
-    serial: 3,
+    serial: 4,
     orders: initialOrders(hour),
   });
   const spend = (n: number) => {

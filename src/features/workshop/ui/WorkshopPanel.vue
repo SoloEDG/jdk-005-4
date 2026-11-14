@@ -14,10 +14,13 @@ defineEmits<{ enqueue: [recipe: string]; claim: [id: string] }>();
     </div>
     <div class="recipe-list">
       <button v-for="r in recipes" :key="r.id" @click="$emit('enqueue', r.id)">
-        <b>{{ items[r.output].icon }}</b><strong>{{ r.name }}</strong
+        <b>{{ r.facility ? "📦" : items[r.output].icon }}</b
+        ><strong>{{ r.name }}</strong
         ><small
           >{{ r.amount }} {{ items[r.input].name }} →
-          {{ r.quantity }} 份<br />{{ r.duration }}h · ¥{{ r.cost }}</small
+          {{ r.facility ? r.name + "（设施）" : `${r.quantity} 份` }}<br />{{
+            r.duration
+          }}h · ¥{{ r.cost }}</small
         ><span>＋ 制作</span>
       </button>
     </div>

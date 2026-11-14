@@ -1,10 +1,11 @@
 import { reactive, readonly } from "vue";
 import type { Item, Plot, Tick, Notice } from "../../../shared/contracts";
-import { crops, grow, ready } from "../lib/crops";
+import { crops, grow, ready, markPollinated } from "../lib/crops";
 export function createFields(
   spend: (amount: number) => boolean,
   harvest: (item: Item, n: number, q: number) => void,
   notice: Notice,
+  occupied: (id: number) => boolean = () => false,
 ) {
   const state = reactive({
     plots: Array.from({ length: 12 }, (_, id): Plot => ({ id, crop: null })),
@@ -19,6 +20,10 @@ export function createFields(
       const plot = state.plots[id],
         seed = crops[state.selected];
       if (!plot || plot.crop || !seed) return;
+      if (occupied(id)) {
+        notice("这块空地放着蜂箱，蜜蜂需要它");
+        return;
+      }
       if (!spend(seed.cost)) {
         notice("资金不足，交付订单或出售库存后再试");
         return;
@@ -30,6 +35,9 @@ export function createFields(
         water: 70,
         stress: 0,
         harvests: 0,
+        pollinated: false,
+        pollinatedBy: null,
+        pollinatedHour: null,
       };
       notice("种下了新的希望");
     },
@@ -37,17 +45,35 @@ export function createFields(
       const c = state.plots[id]?.crop;
       if (c) c.water = 100;
     },
+    /** 测试与调试用：把作物直接推进到指定生长值 */
+    debugSetGrowth(id: number, growth: number) {
+      const c = state.plots[id]?.crop;
+      if (c) c.growth = growth;
+    },
+    /** 蜂群访问：授粉记录落到本轮作物上，返回是否首次授粉成功 */
+    pollinate(plotId: number, hiveId: string, hour: number) {
+      const plot = state.plots[plotId];
+      if (!plot?.crop || plot.crop.pollinated) return false;
+      plot.crop = markPollinated(plot.crop, hiveId, hour);
+      return true;
+    },
     harvest(id: number) {
       const plot = state.plots[id],
         crop = plot?.crop;
       if (!crop || !ready(crop)) return;
       const def = crops[crop.item]!;
-      harvest(crop.item, def.yield, crop.stress <= 2 ? 2 : 1);
+      const base = crop.stress <= 2 ? 2 : 1;
+      const quality = crop.pollinated ? Math.min(3, base + 1) : base;
+      harvest(crop.item, def.yield, quality);
       if (crop.harvests < def.repeat) {
         crop.growth = 0;
         crop.harvests++;
       } else plot.crop = null;
-      notice("收获已按品质分批入仓");
+      notice(
+        crop.pollinated
+          ? "授粉作物已按独立的高品质批次入仓"
+          : "收获已按品质分批入仓",
+      );
     },
     tick(tick: Tick) {
       for (const plot of state.plots)
@@ -57,6 +83,12 @@ export function createFields(
     snapshot: () => JSON.parse(JSON.stringify(state)) as typeof state,
     restore: (data: typeof state) => {
       Object.assign(state, data);
+      for (const plot of state.plots)
+        if (plot.crop && plot.crop.pollinated === undefined) {
+          plot.crop.pollinated = false;
+          plot.crop.pollinatedBy = null;
+          plot.crop.pollinatedHour = null;
+        }
     },
   };
 }
